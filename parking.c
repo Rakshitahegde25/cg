@@ -36,13 +36,10 @@ void initParkingLot(void) {
         slots[index].angle = 0.0f;
         slots[index].width = 4.2f;
         slots[index].depth = 7.0f;
-        slots[index].type = (i < 2) ? TYPE_DISABLED : ((i == 8) ? TYPE_RESERVED : TYPE_STANDARD);
-        slots[index].status = (slots[index].type == TYPE_RESERVED) ? STATUS_RESERVED : STATUS_AVAILABLE;
+        slots[index].type = (i < 2) ? TYPE_DISABLED : TYPE_STANDARD;
+        slots[index].status = STATUS_AVAILABLE;
         slots[index].carColorIndex = rand() % 6;
         RESET_SLOT_FIELDS(slots[index]);
-        if (slots[index].type == TYPE_RESERVED) {
-            slots[index].reservationRemaining = 1800; // Reserved for 30 min
-        }
         index++;
     }
 
@@ -55,13 +52,10 @@ void initParkingLot(void) {
         slots[index].angle = 180.0f;
         slots[index].width = 4.2f;
         slots[index].depth = 7.0f;
-        slots[index].type = (i < 2) ? TYPE_EV : ((i == 8) ? TYPE_RESERVED : TYPE_STANDARD);
-        slots[index].status = (slots[index].type == TYPE_RESERVED) ? STATUS_RESERVED : STATUS_AVAILABLE;
+        slots[index].type = (i < 2) ? TYPE_EV : TYPE_STANDARD;
+        slots[index].status = STATUS_AVAILABLE;
         slots[index].carColorIndex = rand() % 6;
         RESET_SLOT_FIELDS(slots[index]);
-        if (slots[index].type == TYPE_RESERVED) {
-            slots[index].reservationRemaining = 1800;
-        }
         index++;
     }
 
@@ -74,13 +68,10 @@ void initParkingLot(void) {
         slots[index].angle = 0.0f;
         slots[index].width = 4.2f;
         slots[index].depth = 7.0f;
-        slots[index].type = (i < 2) ? TYPE_EV : ((i == 8) ? TYPE_RESERVED : TYPE_STANDARD);
-        slots[index].status = (slots[index].type == TYPE_RESERVED) ? STATUS_RESERVED : STATUS_AVAILABLE;
+        slots[index].type = (i < 2) ? TYPE_EV : TYPE_STANDARD;
+        slots[index].status = STATUS_AVAILABLE;
         slots[index].carColorIndex = rand() % 6;
         RESET_SLOT_FIELDS(slots[index]);
-        if (slots[index].type == TYPE_RESERVED) {
-            slots[index].reservationRemaining = 1800;
-        }
         index++;
     }
 
@@ -93,13 +84,10 @@ void initParkingLot(void) {
         slots[index].angle = 180.0f;
         slots[index].width = 4.2f;
         slots[index].depth = 7.0f;
-        slots[index].type = (i < 2) ? TYPE_DISABLED : ((i == 8) ? TYPE_RESERVED : TYPE_STANDARD);
-        slots[index].status = (slots[index].type == TYPE_RESERVED) ? STATUS_RESERVED : STATUS_AVAILABLE;
+        slots[index].type = (i < 2) ? TYPE_DISABLED : TYPE_STANDARD;
+        slots[index].status = STATUS_AVAILABLE;
         slots[index].carColorIndex = rand() % 6;
         RESET_SLOT_FIELDS(slots[index]);
-        if (slots[index].type == TYPE_RESERVED) {
-            slots[index].reservationRemaining = 1800;
-        }
         index++;
     }
 
@@ -131,7 +119,7 @@ void updateParkingStats(void) {
         } else if (slots[i].status == STATUS_OCCUPIED) {
             stats.occupied++;
             if (slots[i].hasCustomer) stats.activeBookings++;
-        } else if (slots[i].status == STATUS_RESERVED || slots[i].type == TYPE_RESERVED) {
+        } else if (slots[i].status == STATUS_RESERVED) {
             stats.reserved++;
         } else if (slots[i].status == STATUS_TIME_EXPIRED) {
             stats.timeExpired++;
@@ -142,7 +130,7 @@ void updateParkingStats(void) {
 
 int findAvailableSlot(void) {
     for (int i = 0; i < slotCount; i++) {
-        if (slots[i].status == STATUS_AVAILABLE && slots[i].type != TYPE_RESERVED) {
+        if (slots[i].status == STATUS_AVAILABLE) {
             return i;
         }
     }
@@ -151,7 +139,7 @@ int findAvailableSlot(void) {
 
 int addVehicleToSlot(int slotIdx) {
     if (slotIdx >= 0 && slotIdx < slotCount) {
-        if (slots[slotIdx].status == STATUS_AVAILABLE && slots[slotIdx].type != TYPE_RESERVED) {
+        if (slots[slotIdx].status == STATUS_AVAILABLE) {
             slots[slotIdx].status = STATUS_OCCUPIED;
             slots[slotIdx].carColorIndex = rand() % 6;
             updateParkingStats();
@@ -202,11 +190,6 @@ void releaseSlot(int slotIdx) {
     slots[slotIdx].customer.eligibleAccessible = 0;
     slots[slotIdx].chargingTime = 0;
     slots[slotIdx].chargingRemaining = 0;
-
-    if (slots[slotIdx].type == TYPE_RESERVED) {
-        slots[slotIdx].status = STATUS_RESERVED;
-        slots[slotIdx].reservationRemaining = 1800;
-    }
 
     updateParkingStats();
 }

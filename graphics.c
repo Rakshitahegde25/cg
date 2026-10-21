@@ -412,7 +412,7 @@ void drawEnvironment3D(void) {
             if (lightingEnabled) glEnable(GL_LIGHTING);
         }
 
-        glColor3f(sr * 0.6f, sg * 0.6f, sb * 0.6f);
+        glColor3f(sr * 0.8f, sg * 0.8f, sb * 0.8f);
         glBegin(GL_QUADS);
         glVertex3f(-2.0f, 0.02f, -3.5f);
         glVertex3f( 2.0f, 0.02f, -3.5f);
@@ -420,9 +420,31 @@ void drawEnvironment3D(void) {
         glVertex3f(-2.0f, 0.02f,  3.5f);
         glEnd();
 
+        // Draw border outline for non-selected slots
+        if (i != selectedSlotIndex) {
+            glDisable(GL_LIGHTING);
+            glColor3f(0.8f, 0.8f, 0.8f);
+            glLineWidth(1.5f);
+            glBegin(GL_LINE_LOOP);
+            glVertex3f(-2.0f, 0.04f, -3.5f);
+            glVertex3f( 2.0f, 0.04f, -3.5f);
+            glVertex3f( 2.0f, 0.04f,  3.5f);
+            glVertex3f(-2.0f, 0.04f,  3.5f);
+            glEnd();
+            if (lightingEnabled) glEnable(GL_LIGHTING);
+        }
+
         glDisable(GL_LIGHTING);
         glColor3f(1.0f, 1.0f, 1.0f);
         drawText3D(-0.7f, 0.12f, -2.8f, slot.id, GLUT_BITMAP_HELVETICA_12);
+        // Show type label for special slots
+        if (slot.type == TYPE_DISABLED) {
+            glColor3f(0.4f, 0.7f, 1.0f);
+            drawText3D(-0.5f, 0.12f, -1.5f, "DIS", GLUT_BITMAP_HELVETICA_10);
+        } else if (slot.type == TYPE_EV) {
+            glColor3f(0.8f, 0.3f, 1.0f);
+            drawText3D(-0.3f, 0.12f, -1.5f, "EV", GLUT_BITMAP_HELVETICA_10);
+        }
         if (lightingEnabled) glEnable(GL_LIGHTING);
 
         if (slot.status == STATUS_OCCUPIED || slot.status == STATUS_TIME_EXPIRED) {
@@ -509,6 +531,14 @@ void drawParkingLot2D(void) {
 
         glColor3f(1.0f, 1.0f, 1.0f);
         drawText3D(-0.7f, 0.1f, -0.2f, slot.id, GLUT_BITMAP_HELVETICA_12);
+        // Show type label for special slots in 2D
+        if (slot.type == TYPE_DISABLED) {
+            glColor3f(0.4f, 0.7f, 1.0f);
+            drawText3D(-0.5f, 0.1f, 1.2f, "DIS", GLUT_BITMAP_HELVETICA_10);
+        } else if (slot.type == TYPE_EV) {
+            glColor3f(0.8f, 0.3f, 1.0f);
+            drawText3D(-0.3f, 0.1f, 1.2f, "EV", GLUT_BITMAP_HELVETICA_10);
+        }
 
         if (slot.status == STATUS_OCCUPIED || slot.status == STATUS_TIME_EXPIRED) {
             glRotatef(slot.angle, 0.0f, 1.0f, 0.0f);
@@ -804,7 +834,7 @@ void drawDashboardHUD(int is3D, int width, int height) {
     drawText2D(rbX1 + 18, rbY1 + 10, "RELEASE ('R')", GLUT_BITMAP_HELVETICA_12);
 
     glColor3f(0.9f, 0.9f, 0.95f);
-    drawText2D(nx1 + 15, ny2 - 82, "B = Book Slot | I = Customer Info | R = Release", GLUT_BITMAP_HELVETICA_12);
+    drawText2D(nx1 + 15, ny2 - 82, "B = Book | I = Info | R = Release | V = Reserve", GLUT_BITMAP_HELVETICA_12);
     drawText2D(nx1 + 15, ny2 - 100, "2=2D, 3=3D, N=Nav, P=Pause/Resume", GLUT_BITMAP_HELVETICA_12);
     drawText2D(nx1 + 15, ny2 - 118, "A=Add, D=Remove, L=Lighting", GLUT_BITMAP_HELVETICA_12);
     drawText2D(nx1 + 15, ny2 - 136, "W/S/Q/E & Arrows = Camera", GLUT_BITMAP_HELVETICA_12);

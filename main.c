@@ -202,6 +202,15 @@ void keyboardCB(unsigned char key, int x, int y) {
             else if (key == '4') sprintf(tempCustomer.vehicleType, "EV Car");
             else return;
 
+            // EV slot: only allow electric vehicles
+            if (slots[selectedSlotIndex].type == TYPE_EV && strcmp(tempCustomer.vehicleType, "EV Car") != 0) {
+                currentBookingState = BOOKING_STATE_NONE;
+                sprintf(statusFeedback, "This slot is exclusively for electric vehicles. Please select another slot.");
+                MessageBox(NULL, "This slot is exclusively for electric vehicles. Please select another slot.", "EV Slot Restriction", MB_OK | MB_ICONWARNING);
+                glutPostRedisplay();
+                return;
+            }
+
             // If slot is Disabled/Accessible, ask for eligibility check
             if (slots[selectedSlotIndex].type == TYPE_DISABLED) {
                 currentBookingState = BOOKING_STATE_ACCESSIBLE_ELIGIBILITY;
@@ -220,7 +229,8 @@ void keyboardCB(unsigned char key, int x, int y) {
             } else if (key == '2') {
                 tempCustomer.eligibleAccessible = 0;
                 currentBookingState = BOOKING_STATE_NONE;
-                sprintf(statusFeedback, "Normal vehicles cannot book accessible slots!");
+                sprintf(statusFeedback, "This slot is reserved for authorized users only.");
+                MessageBox(NULL, "This slot is reserved for authorized users only.", "Access Restricted", MB_OK | MB_ICONWARNING);
             }
             glutPostRedisplay();
             return;
@@ -306,6 +316,22 @@ void keyboardCB(unsigned char key, int x, int y) {
                 currentPathCount = 0;
                 resetCamera();
                 updateSlotSelectionFeedback();
+            }
+            break;
+        case 'v':
+        case 'V':
+            if (selectedSlotIndex >= 0 && selectedSlotIndex < slotCount) {
+                if (slots[selectedSlotIndex].status == STATUS_AVAILABLE) {
+                    slots[selectedSlotIndex].status = STATUS_RESERVED;
+                    slots[selectedSlotIndex].reservationRemaining = 1800;
+                    updateParkingStats();
+                    sprintf(statusFeedback, "Slot %s manually RESERVED.", slots[selectedSlotIndex].id);
+                } else if (slots[selectedSlotIndex].status == STATUS_RESERVED) {
+                    slots[selectedSlotIndex].status = STATUS_AVAILABLE;
+                    slots[selectedSlotIndex].reservationRemaining = 0;
+                    updateParkingStats();
+                    sprintf(statusFeedback, "Slot %s reservation CANCELLED. Now AVAILABLE.", slots[selectedSlotIndex].id);
+                }
             }
             break;
         case 'p':
