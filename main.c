@@ -164,10 +164,14 @@ void keyboardCB(unsigned char key, int x, int y) {
             } else if (key == 8 || key == 127) {
                 int len = strlen(tempCustomer.phone);
                 if (len > 0) tempCustomer.phone[len - 1] = '\0';
-            } else if (key >= 32 && key <= 126 && strlen(tempCustomer.phone) < 18) {
-                int len = strlen(tempCustomer.phone);
-                tempCustomer.phone[len] = key;
-                tempCustomer.phone[len + 1] = '\0';
+            } else if (key >= 32 && key <= 126) {
+                if (key >= '0' && key <= '9' && strlen(tempCustomer.phone) < 18) {
+                    int len = strlen(tempCustomer.phone);
+                    tempCustomer.phone[len] = key;
+                    tempCustomer.phone[len + 1] = '\0';
+                } else if (key < '0' || key > '9') {
+                    MessageBox(NULL, "Please enter numbers only.", "Invalid Input", MB_OK | MB_ICONWARNING);
+                }
             }
             glutPostRedisplay();
             return;
