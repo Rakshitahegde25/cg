@@ -23,9 +23,12 @@ void initVehicle(void) {
     activeVehicle.angle = 90.0f; // Facing +Z
     activeVehicle.targetAngle = 90.0f;
     activeVehicle.isNavigating = 0;
+    activeVehicle.isExiting = 0;
     activeVehicle.isPaused = 0;
+    activeVehicle.isReversing = 0;
     activeVehicle.currentWaypoint = 0;
     activeVehicle.targetSlotIndex = -1;
+    activeVehicle.exitSlotIndex = -1;
     activeVehicle.speed = 14.0f;
     activeVehicle.color[0] = 0.9f;
     activeVehicle.color[1] = 0.2f;
@@ -72,6 +75,77 @@ void startVehicleNavigation(int slotIndex) {
     }
 }
 
+void startExitNavigation(int slotIndex) {
+    if (slotIndex < 0 || slotIndex >= slotCount) {
+        sprintf(statusFeedback, "Error: No valid slot to exit.");
+        return;
+    }
+
+    ParkingSlot target = slots[slotIndex];
+
+    if (target.status != STATUS_OCCUPIED && target.status != STATUS_TIME_EXPIRED) {
+        sprintf(statusFeedback, "Slot %s is not occupied. Cannot exit.", target.id);
+        return;
+    }
+
+    // Save slot color BEFORE any changes — do NOT release the slot yet.
+    // The slot stays occupied (parked car remains visible) until the animated
+    // vehicle pulls out past the aisle waypoint.
+    int savedColor = slots[slotIndex].carColorIndex;
+
+    // Setup vehicle at the slot position
+    activeVehicle.targetSlotIndex = slotIndex;
+    activeVehicle.exitSlotIndex = slotIndex; // Deferred release
+    activeVehicle.x = target.x;
+    activeVehicle.y = 0.0f;
+    activeVehicle.z = target.z;
+    activeVehicle.speed = 10.0f; // Slower for realistic exit
+    activeVehicle.isPaused = 0;
+
+    // The car is parked facing INTO the slot. The slot.angle field points
+    // outward toward the aisle. When parked, the car's nose faces the opposite
+    // direction (into the slot). We keep this parked heading and REVERSE out.
+    //
+    // Parked heading = slot.angle + 180 (nose into slot)
+    // The car reverses toward the aisle while keeping its nose pointed in.
+    float parkedAngle = target.angle + 180.0f;
+    if (parkedAngle >= 360.0f) parkedAngle -= 360.0f;
+    activeVehicle.angle = parkedAngle;
+    activeVehicle.targetAngle = parkedAngle;
+    activeVehicle.isReversing = 1; // Start in reverse
+
+    // Use the car's color from the parked slot
+    static float exitColors[6][3] = {
+        {0.90f, 0.15f, 0.15f},
+        {0.15f, 0.40f, 0.85f},
+        {0.30f, 0.35f, 0.40f},
+        {0.95f, 0.65f, 0.10f},
+        {0.10f, 0.65f, 0.30f},
+        {0.92f, 0.92f, 0.95f}
+    };
+    activeVehicle.color[0] = exitColors[savedColor % 6][0];
+    activeVehicle.color[1] = exitColors[savedColor % 6][1];
+    activeVehicle.color[2] = exitColors[savedColor % 6][2];
+
+    // Calculate path from slot to exit gate (with pull-out waypoints and A* routing)
+    if (calculatePathFromSlotToExit(slotIndex, currentPath, &currentPathCount)) {
+        activeVehicle.isNavigating = 1;
+        activeVehicle.isExiting = 1;
+        activeVehicle.currentWaypoint = 1; // Skip first point (slot position, we're already there)
+
+        sprintf(statusFeedback, "EXIT Route (A*) - Navigating from Slot %s to EXIT gate...", target.id);
+    } else {
+        // Path calculation failed — release immediately as fallback
+        releaseSlot(slotIndex);
+        activeVehicle.isNavigating = 0;
+        activeVehicle.isExiting = 0;
+        activeVehicle.isReversing = 0;
+        activeVehicle.exitSlotIndex = -1;
+        currentPathCount = 0;
+        sprintf(statusFeedback, "Slot %s Released. (Could not calculate exit route)", target.id);
+    }
+}
+
 void togglePauseVehicleNavigation(void) {
     // Toggles pause state for active vehicle movement OR active parking timers
     if (activeVehicle.isNavigating) {
@@ -99,28 +173,52 @@ void resetVehicleNavigation(void) {
     sprintf(statusFeedback, "Route & Navigation Reset");
 }
 
+// Helper: finalize exit — release deferred slot, reset vehicle to entrance
+static void finalizeExit(void) {
+    // Release the deferred exit slot if still held
+    if (activeVehicle.exitSlotIndex >= 0 && activeVehicle.exitSlotIndex < slotCount) {
+        if (slots[activeVehicle.exitSlotIndex].status == STATUS_OCCUPIED ||
+            slots[activeVehicle.exitSlotIndex].status == STATUS_TIME_EXPIRED) {
+            releaseSlot(activeVehicle.exitSlotIndex);
+        }
+    }
+    activeVehicle.isExiting = 0;
+    activeVehicle.isReversing = 0;
+    currentPathCount = 0;
+    sprintf(statusFeedback, "Vehicle has EXITED through the gate. Slot released.");
+    initVehicle();
+}
+
+// Helper: finalize parking arrival
+static void finalizeParkingArrival(void) {
+    if (activeVehicle.targetSlotIndex >= 0) {
+        int idx = activeVehicle.targetSlotIndex;
+        slots[idx].status = STATUS_OCCUPIED;
+        slots[idx].carColorIndex = rand() % 6;
+
+        if (slots[idx].parkingDuration > 0) {
+            startSlotTimer(idx, slots[idx].parkingDuration, slots[idx].isTestTimer);
+        } else {
+            startSlotTimer(idx, 7200, 0);
+        }
+
+        updateParkingStats();
+        sprintf(statusFeedback, "Destination Reached! Slot %s is now OCCUPIED. Timer Started.", slots[idx].id);
+    }
+}
+
 void updateVehicle(float deltaTime) {
     if (!activeVehicle.isNavigating || activeVehicle.isPaused) return;
 
+    // Check if we've gone past all waypoints
     if (activeVehicle.currentWaypoint >= currentPathCount) {
-        // Reached destination slot!
         activeVehicle.isNavigating = 0;
         activeVehicle.isPaused = 0;
 
-        if (activeVehicle.targetSlotIndex >= 0) {
-            int idx = activeVehicle.targetSlotIndex;
-            slots[idx].status = STATUS_OCCUPIED;
-            slots[idx].carColorIndex = rand() % 6;
-            
-            // Start parking countdown timer if duration was set during booking
-            if (slots[idx].parkingDuration > 0) {
-                startSlotTimer(idx, slots[idx].parkingDuration, slots[idx].isTestTimer);
-            } else {
-                startSlotTimer(idx, 7200, 0); // Default 2 hours if not set
-            }
-
-            updateParkingStats();
-            sprintf(statusFeedback, "Destination Reached! Slot %s is now OCCUPIED. Timer Started.", slots[idx].id);
+        if (activeVehicle.isExiting) {
+            finalizeExit();
+        } else {
+            finalizeParkingArrival();
         }
         return;
     }
@@ -130,24 +228,43 @@ void updateVehicle(float deltaTime) {
     float dz = targetWP.z - activeVehicle.z;
     float dist = sqrtf(dx * dx + dz * dz);
 
+    // Reached the current waypoint — advance
     if (dist < 0.35f) {
+        // -- Deferred slot release: when the car reaches the aisle waypoint
+        //    (waypoint 2 = first aisle node after pull-out), release the slot
+        //    so the parked car disappears and the animated car takes over.
+        if (activeVehicle.isExiting && activeVehicle.exitSlotIndex >= 0) {
+            // Release on waypoint 2 (the aisle node after the pull-out intermediate point)
+            if (activeVehicle.currentWaypoint >= 2) {
+                if (slots[activeVehicle.exitSlotIndex].status == STATUS_OCCUPIED ||
+                    slots[activeVehicle.exitSlotIndex].status == STATUS_TIME_EXPIRED) {
+                    releaseSlot(activeVehicle.exitSlotIndex);
+                }
+                // Don't release again
+                activeVehicle.exitSlotIndex = -1;
+            }
+        }
+
+        // -- Transition from reverse to forward driving at the aisle node
+        if (activeVehicle.isExiting && activeVehicle.isReversing) {
+            // We reverse through waypoints 1 and 2 (pull-out + aisle approach).
+            // Once we reach waypoint 2 (aisle center), switch to forward driving.
+            if (activeVehicle.currentWaypoint >= 2) {
+                activeVehicle.isReversing = 0;
+                activeVehicle.speed = 14.0f; // Speed up for road driving
+            }
+        }
+
         activeVehicle.currentWaypoint++;
+
         if (activeVehicle.currentWaypoint >= currentPathCount) {
             activeVehicle.isNavigating = 0;
             activeVehicle.isPaused = 0;
-            if (activeVehicle.targetSlotIndex >= 0) {
-                int idx = activeVehicle.targetSlotIndex;
-                slots[idx].status = STATUS_OCCUPIED;
-                slots[idx].carColorIndex = rand() % 6;
 
-                if (slots[idx].parkingDuration > 0) {
-                    startSlotTimer(idx, slots[idx].parkingDuration, slots[idx].isTestTimer);
-                } else {
-                    startSlotTimer(idx, 7200, 0);
-                }
-
-                updateParkingStats();
-                sprintf(statusFeedback, "Destination Reached! Slot %s is now OCCUPIED. Timer Started.", slots[idx].id);
+            if (activeVehicle.isExiting) {
+                finalizeExit();
+            } else {
+                finalizeParkingArrival();
             }
             return;
         }
@@ -157,19 +274,45 @@ void updateVehicle(float deltaTime) {
         dist = sqrtf(dx * dx + dz * dz);
     }
 
-    float desiredAngle = atan2f(dx, dz) * 180.0f / (float)M_PI;
-    
-    float diff = desiredAngle - activeVehicle.angle;
-    while (diff > 180.0f) diff -= 360.0f;
-    while (diff < -180.0f) diff += 360.0f;
-    activeVehicle.angle += diff * 10.0f * deltaTime;
+    // --- Angle and movement ---
+    if (activeVehicle.isReversing) {
+        // REVERSE MODE: The car moves toward the target waypoint, but the
+        // car's nose points AWAY from the direction of travel (i.e., the car
+        // backs out). We compute the desired travel direction, then set the
+        // car's heading to the opposite (travel_dir + 180).
+        float travelAngle = atan2f(dx, dz) * 180.0f / (float)M_PI;
+        float reverseHeading = travelAngle + 180.0f;
+        if (reverseHeading >= 360.0f) reverseHeading -= 360.0f;
+        if (reverseHeading < 0.0f) reverseHeading += 360.0f;
 
-    float moveStep = activeVehicle.speed * deltaTime;
-    if (moveStep > dist) moveStep = dist;
+        float diff = reverseHeading - activeVehicle.angle;
+        while (diff > 180.0f) diff -= 360.0f;
+        while (diff < -180.0f) diff += 360.0f;
+        activeVehicle.angle += diff * 8.0f * deltaTime;
 
-    if (dist > 0.001f) {
-        activeVehicle.x += (dx / dist) * moveStep;
-        activeVehicle.z += (dz / dist) * moveStep;
+        float moveStep = activeVehicle.speed * deltaTime;
+        if (moveStep > dist) moveStep = dist;
+
+        if (dist > 0.001f) {
+            activeVehicle.x += (dx / dist) * moveStep;
+            activeVehicle.z += (dz / dist) * moveStep;
+        }
+    } else {
+        // FORWARD MODE: Car's nose points toward the target waypoint
+        float desiredAngle = atan2f(dx, dz) * 180.0f / (float)M_PI;
+
+        float diff = desiredAngle - activeVehicle.angle;
+        while (diff > 180.0f) diff -= 360.0f;
+        while (diff < -180.0f) diff += 360.0f;
+        activeVehicle.angle += diff * 10.0f * deltaTime;
+
+        float moveStep = activeVehicle.speed * deltaTime;
+        if (moveStep > dist) moveStep = dist;
+
+        if (dist > 0.001f) {
+            activeVehicle.x += (dx / dist) * moveStep;
+            activeVehicle.z += (dz / dist) * moveStep;
+        }
     }
 }
 

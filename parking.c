@@ -36,7 +36,7 @@ void initParkingLot(void) {
         slots[index].angle = 0.0f;
         slots[index].width = 4.2f;
         slots[index].depth = 7.0f;
-        slots[index].type = (i < 2) ? TYPE_DISABLED : TYPE_STANDARD;
+        slots[index].type = TYPE_STANDARD;
         slots[index].status = STATUS_AVAILABLE;
         slots[index].carColorIndex = rand() % 6;
         RESET_SLOT_FIELDS(slots[index]);
@@ -52,7 +52,7 @@ void initParkingLot(void) {
         slots[index].angle = 180.0f;
         slots[index].width = 4.2f;
         slots[index].depth = 7.0f;
-        slots[index].type = (i < 2) ? TYPE_EV : TYPE_STANDARD;
+        slots[index].type = TYPE_STANDARD;
         slots[index].status = STATUS_AVAILABLE;
         slots[index].carColorIndex = rand() % 6;
         RESET_SLOT_FIELDS(slots[index]);
@@ -68,7 +68,7 @@ void initParkingLot(void) {
         slots[index].angle = 0.0f;
         slots[index].width = 4.2f;
         slots[index].depth = 7.0f;
-        slots[index].type = (i < 2) ? TYPE_EV : TYPE_STANDARD;
+        slots[index].type = TYPE_STANDARD;
         slots[index].status = STATUS_AVAILABLE;
         slots[index].carColorIndex = rand() % 6;
         RESET_SLOT_FIELDS(slots[index]);
@@ -84,7 +84,7 @@ void initParkingLot(void) {
         slots[index].angle = 180.0f;
         slots[index].width = 4.2f;
         slots[index].depth = 7.0f;
-        slots[index].type = (i < 2) ? TYPE_DISABLED : TYPE_STANDARD;
+        slots[index].type = TYPE_STANDARD;
         slots[index].status = STATUS_AVAILABLE;
         slots[index].carColorIndex = rand() % 6;
         RESET_SLOT_FIELDS(slots[index]);

@@ -49,16 +49,26 @@ static void startBookingFlow(void) {
         return;
     }
 
-    // Start booking wizard flow
-    currentBookingState = BOOKING_STATE_ENTER_NAME;
+    // Direct booking - no manual input required
+    int idx = selectedSlotIndex;
     memset(&tempCustomer, 0, sizeof(Person));
-    tempCustomer.name[0] = '\0';
-    tempCustomer.phone[0] = '\0';
-    tempCustomer.vehicleNumber[0] = '\0';
-    tempCustomer.vehicleType[0] = '\0';
-    tempCustomer.eligibleAccessible = 0;
-    tempDurationSec = 3600; // 1 hour default
-    tempIsTestTimer = 0;
+    sprintf(tempCustomer.name, "Customer");
+    sprintf(tempCustomer.phone, "N/A");
+    sprintf(tempCustomer.vehicleNumber, "N/A");
+    if (slots[idx].type == TYPE_EV) {
+        sprintf(tempCustomer.vehicleType, "EV Car");
+    } else {
+        sprintf(tempCustomer.vehicleType, "Car");
+    }
+    tempCustomer.eligibleAccessible = (slots[idx].type == TYPE_DISABLED) ? 1 : 0;
+
+    slots[idx].customer = tempCustomer;
+    slots[idx].hasCustomer = 1;
+    slots[idx].parkingDuration = 7200; // Default 2 hours
+    slots[idx].isTestTimer = 0;
+
+    // Launch A* navigation for booking
+    startVehicleNavigation(idx);
 }
 
 void displayCB(void) {
@@ -128,8 +138,8 @@ void keyboardCB(unsigned char key, int x, int y) {
         if (currentBookingState == BOOKING_STATE_CUSTOMER_INFO_VIEW) {
             if (key == 'r' || key == 'R') {
                 if (selectedSlotIndex >= 0) {
-                    releaseSlot(selectedSlotIndex);
-                    sprintf(statusFeedback, "Slot %s Released - Status: AVAILABLE", slots[selectedSlotIndex].id);
+                    startExitNavigation(selectedSlotIndex);
+                    sprintf(statusFeedback, "EXIT Route - Navigating from Slot %s to EXIT gate...", slots[selectedSlotIndex].id);
                 }
                 currentBookingState = BOOKING_STATE_NONE;
             } else if (key == 'i' || key == 'I') {
@@ -308,8 +318,7 @@ void keyboardCB(unsigned char key, int x, int y) {
         case 'r':
         case 'R':
             if (selectedSlotIndex >= 0 && (slots[selectedSlotIndex].status == STATUS_OCCUPIED || slots[selectedSlotIndex].status == STATUS_TIME_EXPIRED)) {
-                releaseSlot(selectedSlotIndex);
-                sprintf(statusFeedback, "Slot %s Released - Status: AVAILABLE", slots[selectedSlotIndex].id);
+                startExitNavigation(selectedSlotIndex);
             } else {
                 resetParkingLot();
                 initVehicle();
@@ -341,8 +350,24 @@ void keyboardCB(unsigned char key, int x, int y) {
         case 't':
         case 'T':
             if (selectedSlotIndex >= 0 && slots[selectedSlotIndex].status == STATUS_AVAILABLE) {
-                startBookingFlow();
-                currentBookingState = BOOKING_STATE_TEST_TIMER_SELECT;
+                int tidx = selectedSlotIndex;
+                memset(&tempCustomer, 0, sizeof(Person));
+                sprintf(tempCustomer.name, "Customer");
+                sprintf(tempCustomer.phone, "N/A");
+                sprintf(tempCustomer.vehicleNumber, "N/A");
+                if (slots[tidx].type == TYPE_EV) {
+                    sprintf(tempCustomer.vehicleType, "EV Car");
+                } else {
+                    sprintf(tempCustomer.vehicleType, "Car");
+                }
+                tempCustomer.eligibleAccessible = (slots[tidx].type == TYPE_DISABLED) ? 1 : 0;
+
+                slots[tidx].customer = tempCustomer;
+                slots[tidx].hasCustomer = 1;
+                slots[tidx].parkingDuration = 30;
+                slots[tidx].isTestTimer = 1;
+
+                startVehicleNavigation(tidx);
             }
             break;
         case 'c':
@@ -456,10 +481,10 @@ int main(int argc, char** argv) {
     printf("====================================================\n");
     printf(" Smart Parking System - Full Customer Booking & Timer System Loaded!\n");
     printf(" Controls: \n");
-    printf("   'B' -> Book Selected Slot (Person & Vehicle Details)\n");
+    printf("   'B' -> Book Selected Slot & Navigate\n");
     printf("   'I' -> View Customer / Booking Information\n");
     printf("   'R' -> Release Slot (Clears Car & Resets Timer)\n");
-    printf("   'T' -> Test Timer (30s / 60s for Lab Demonstration)\n");
+    printf("   'T' -> Test Timer (30s for Lab Demonstration)\n");
     printf("   'P' -> Pause / Resume Timers\n");
     printf("   '2' -> 2D View | '3' -> 3D View | 'N' -> Navigate\n");
     printf("====================================================\n");

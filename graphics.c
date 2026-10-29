@@ -626,10 +626,6 @@ void drawDashboardHUD(int is3D, int width, int height) {
     glColor3f(1.0f, 0.3f, 0.7f);
     drawText2D(28, height - 128, buf, GLUT_BITMAP_HELVETICA_12);
 
-    sprintf(buf, "EV SLOTS        : %d | ACCESSIBLE: %d", stats.ev, stats.disabled);
-    glColor3f(0.85f, 0.45f, 0.95f);
-    drawText2D(28, height - 146, buf, GLUT_BITMAP_HELVETICA_12);
-
     sprintf(buf, "ACTIVE BOOKINGS : %d", stats.activeBookings);
     glColor3f(0.2f, 0.95f, 1.0f);
     drawText2D(28, height - 164, buf, GLUT_BITMAP_HELVETICA_12);
@@ -883,7 +879,7 @@ void drawDashboardHUD(int is3D, int width, int height) {
 // INTERACTIVE BOOKING MODAL DIALOG OVERLAY
 // -------------------------------------------------------------
 void drawBookingModal(int winW, int winH) {
-    if (currentBookingState == BOOKING_STATE_NONE || currentBookingState == BOOKING_STATE_CUSTOMER_INFO_VIEW) return;
+    return; // Booking modal removed - direct booking without manual input
 
     glDisable(GL_LIGHTING);
     glDisable(GL_DEPTH_TEST);
@@ -1268,15 +1264,28 @@ int handleHUDButtonClick(int mouseX, int mouseY, int winW, int winH) {
         if (selectedSlotIndex >= 0) {
             ParkingSlot sel = slots[selectedSlotIndex];
             if (sel.status == STATUS_AVAILABLE && sel.type != TYPE_RESERVED) {
-                currentBookingState = BOOKING_STATE_ENTER_NAME;
+                // Direct booking - no manual input required
                 memset(&tempCustomer, 0, sizeof(Person));
-                tempDurationSec = 7200;
-                tempIsTestTimer = 0;
+                sprintf(tempCustomer.name, "Customer");
+                sprintf(tempCustomer.phone, "N/A");
+                sprintf(tempCustomer.vehicleNumber, "N/A");
+                if (sel.type == TYPE_EV) {
+                    sprintf(tempCustomer.vehicleType, "EV Car");
+                } else {
+                    sprintf(tempCustomer.vehicleType, "Car");
+                }
+                tempCustomer.eligibleAccessible = (sel.type == TYPE_DISABLED) ? 1 : 0;
+
+                slots[selectedSlotIndex].customer = tempCustomer;
+                slots[selectedSlotIndex].hasCustomer = 1;
+                slots[selectedSlotIndex].parkingDuration = 7200;
+                slots[selectedSlotIndex].isTestTimer = 0;
+
+                startVehicleNavigation(selectedSlotIndex);
             } else if (sel.status == STATUS_OCCUPIED || sel.status == STATUS_TIME_EXPIRED) {
                 int midX = btnX1 + (btnX2 - btnX1) / 2;
                 if (mouseX <= midX) {
-                    releaseSlot(selectedSlotIndex);
-                    sprintf(statusFeedback, "Slot %s Released - Status: AVAILABLE", sel.id);
+                    startExitNavigation(selectedSlotIndex);
                 } else {
                     currentBookingState = BOOKING_STATE_CUSTOMER_INFO_VIEW;
                 }
@@ -1308,8 +1317,7 @@ int handleHUDButtonClick(int mouseX, int mouseY, int winW, int winH) {
 
     if (mouseX >= rbX1 && mouseX <= rbX2 && invY >= rbY1 && invY <= rbY2) {
         if (selectedSlotIndex >= 0) {
-            releaseSlot(selectedSlotIndex);
-            sprintf(statusFeedback, "Slot %s Released - Status: AVAILABLE", slots[selectedSlotIndex].id);
+            startExitNavigation(selectedSlotIndex);
         } else {
             resetVehicleNavigation();
         }

@@ -14,6 +14,7 @@ extern int currentPathCount;
 
 void initNavigationNetwork(void);
 int calculatePathToSlot(int slotIndex, Vec3* pathOut, int* countOut);
+int calculatePathFromSlotToExit(int slotIndex, Vec3* pathOut, int* countOut);
 void drawPath(int is3D);
 
 #endif
